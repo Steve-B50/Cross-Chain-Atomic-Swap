@@ -94,3 +94,59 @@
     withdrawn: bool
   }
 )
+
+;; Protocol admin for governance
+(define-data-var contract-admin principal tx-sender)
+
+;; Fee accumulator for protocol fees
+(define-data-var protocol-fee-balance uint u0)
+
+;; Contract version
+(define-data-var contract-version (string-ascii 20) "1.0.0")
+
+;; Verify a HTLC hash matches the preimage
+(define-private (verify-hash (preimage (buff 32)) (hash-lock (buff 32)))
+  (is-eq (sha256 preimage) hash-lock)
+)
+
+
+;; Check if current block height is within timelock constraints
+(define-private (is-timelock-valid (time-lock uint))
+  (let ((current-height stacks-block-height))
+    (< current-height time-lock)
+  )
+)
+
+;; Check if a swap has expired
+(define-private (is-swap-expired (expiration-height uint))
+  (let ((current-height stacks-block-height))
+    (>= current-height expiration-height)
+  )
+)
+
+;; Verify multiple signatures for a multi-sig swap
+(define-private (verify-multi-sig (swap-id (buff 32)) (required uint) (provided uint))
+  (and
+    (>= provided required)
+    (is-eq (get multi-sig-required (default-to 
+      {
+        initiator: tx-sender,
+        participant: tx-sender,
+        amount: u0,
+        hash-lock: 0x0000000000000000000000000000000000000000000000000000000000000000,
+        time-lock: u0,
+        swap-token: "",
+        target-chain: "",
+        target-address: 0x0000000000000000000000000000000000000000000000000000000000000000,
+        claimed: false,
+        refunded: false,
+        multi-sig-required: u0,
+        multi-sig-provided: u0,
+        privacy-level: u0,
+        expiration-height: u0,
+        swap-fee: u0,
+        protocol-fee: u0
+      }
+      (map-get? swaps { swap-id: swap-id }))) required)
+  )
+)
